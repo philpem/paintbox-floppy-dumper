@@ -1,0 +1,24 @@
+YUV to PNG
+==========
+
+ffmpeg -f rawvideo -s 710x576 -pix_fmt yuyv422 -i image.bin OutputImage.yuv
+
+ffmpeg
+-f rawvideo - input format is RAW VIDEO FRAMES ONLY
+-s 710x576 - source pixel size is 710x576
+-pix_fmt yuyv422 - incoming pixel format is 8 bits per component, YUV 4:2:2 with YUYV order
+-i image.bin - read image.bin
+result.png - create a PNG file as output
+
+
+PNG to YUV
+==========
+
+ffmpeg -i /tmp/InputImage.png -f rawvideo -pix_fmt yuyv422 -s 710x576 OutputImage.yuv
+
+ffmpeg 
+-i /tmp/InputImage.png - input is a PNG file
+-f rawvideo - output format is raw video frames
+-pix_fmt yuyv422 - output pixel format is YUYV 4:2:2 8b/comp
+-s 710x576 - resize to 710x576
+OutputImage.yuv - create a raw YUV file
