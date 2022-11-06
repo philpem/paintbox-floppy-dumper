@@ -36,49 +36,24 @@ struct MFMTRACKIMG
 #pragma pack()
 
 
+// TODO: Genericise find_mark as find_mark(pattern, bits)
+
 // an MFM track
 class MFMTrack : public vector<bool> {
 	public:
-		off_t find_mark(const uint16_t mark);
-		off_t find_mark(const uint32_t mark);
+		off_t find_mark(const uint64_t mark, const size_t len, const size_t start=0);
 		uint16_t track;
 		uint8_t side;
 };
 
-off_t MFMTrack::find_mark(const uint16_t mark)
-{
-	vector<bool> patt;
 
-	uint16_t x = mark;
-	for (size_t i=0; i<16; i++) {
-		patt.push_back(x & 0x8000);
-		x <<= 1;
-	}
-#if 0
-	for (auto v : patt) {
-		printf("%d", v ? 1 : 0);
-	}
-	printf("\n");
-
-	printf("len this %lu\n", this->size());
-	printf("len patt %lu\n", patt.size());
-#endif
-
-	auto res = std::search(this->begin(), this->end(), patt.begin(), patt.end());
-	if (res == this->end()) {
-		return -1;
-	} else {
-		return std::distance(this->begin(), res);
-	}
-}
-
-off_t MFMTrack::find_mark(const uint32_t mark)
+off_t MFMTrack::find_mark(const uint64_t mark, const size_t len, const size_t start)
 {
 	vector<bool> patt;
 
 	uint32_t x = mark;
-	for (size_t i=0; i<32; i++) {
-		patt.push_back(x & 0x80000000);
+	for (size_t i=0; i<len; i++) {
+		patt.push_back(x & (1<<(len-1)));
 		x <<= 1;
 	}
 #if 0
@@ -91,7 +66,7 @@ off_t MFMTrack::find_mark(const uint32_t mark)
 	printf("len patt %lu\n", patt.size());
 #endif
 
-	auto res = std::search(this->begin(), this->end(), patt.begin(), patt.end());
+	auto res = std::search(this->begin()+start, this->end(), patt.begin(), patt.end());
 	if (res == this->end()) {
 		return -1;
 	} else {
@@ -188,7 +163,9 @@ MFMFile::MFMFile(const char *filename)
 //const uint16_t PREGAP_MARK = 0xAAAA;
 //const uint16_t SYNC_MARK   = 0x9125;
 
-const uint32_t PREGAP_THEN_SYNCMARK = 0xAAAA9125;
+const uint64_t PREGAP_THEN_SYNCMARK = 0xAAAA9125;
+const size_t   PATTLEN = 2*16;
+const size_t   BLANKING = 500;	// don't search for sync before this bit
 
 int main(int argc, char **argv)
 {
@@ -217,7 +194,7 @@ int main(int argc, char **argv)
 		memset(buf, '\0', tracklen);
 
 		// Find the sync mark
-		auto syncpos = track.find_mark(PREGAP_THEN_SYNCMARK);
+		auto syncpos = track.find_mark(PREGAP_THEN_SYNCMARK, PATTLEN, BLANKING);
 		//printf("find Pregap+Sync %ld = %ld bytes\n", syncpos, (track.size() - syncpos)/16);
 
 		// Sanity check the sync mark
@@ -228,7 +205,7 @@ int main(int argc, char **argv)
 			printf("%02d/%d - Sync too late\n", track.track, track.side);
 		}
 		else {
-			printf("%02d/%d - Track has %lu mfmbits with pg+sync at %lu -- (about %lu bytes total, or %lu after pregap+sync), tracklen is 0x%lX\n",
+			printf("%02d/%d - Track has %lu mfmbits with pg+sync at %lu -- (about %lu bytes total, or %lu after pregap+sync), tracklen is 0x%lX -- ",
 					track.track, track.side,
 					track.size(),
 					syncpos,
@@ -238,7 +215,7 @@ int main(int argc, char **argv)
 
 			// decode MFM bits back into binary by dropping the clock bits
 			uint8_t byte;
-			for (size_t i=0; i<tracklen; i++) {
+			for (size_t i=0; i<tracklen+4; i++) {
 				byte = 0;
 				for (size_t nbit=0; nbit<8; nbit++) {
 					byte <<= 1;
@@ -253,6 +230,13 @@ int main(int argc, char **argv)
 				}
 				buf[i] = byte;
 			}
+
+			// Check the sentinel pattern
+			printf("EOT is %02X:%02X:%02X:%02X\n",
+					buf[tracklen],
+					buf[tracklen+1],
+					buf[tracklen+2],
+					buf[tracklen+3]);
 		}
 
 		// Save the decoded track
