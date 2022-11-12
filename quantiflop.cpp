@@ -232,11 +232,17 @@ int main(int argc, char **argv)
 			}
 
 			// Check the sentinel pattern
-			printf("EOT is %02X:%02X:%02X:%02X\n",
+			printf("EOT is %02X:%02X:%02X:%02X",
 					buf[tracklen],
 					buf[tracklen+1],
 					buf[tracklen+2],
 					buf[tracklen+3]);
+
+			if ((buf[tracklen+2] != 0x00) || (buf[tracklen+3] != 0x53)) {
+				printf(" ***BAD***");
+			}
+
+			printf("\n");
 		}
 
 		// Save the decoded track
